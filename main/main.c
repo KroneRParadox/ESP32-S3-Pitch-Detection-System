@@ -49,13 +49,15 @@ typedef struct {
 static QueueHandle_t xRawQueue    = NULL; // mic_task -> audio_task
 static QueueHandle_t xResultQueue = NULL; // audio_task -> comm_task
 static const char *TAG = "MAIN";
+static const char *TAG_TMIC = "MIC_TASK";
+static const char *TAG_TCOM = "COM_TASK";
+static const char *TAG_TAUD = "AUD_TASK";
+
 
 /** ----------------------------------------------------------------
  *  GPTimer callback -> pisca LED (opcional)
  *  ---------------------------------------------------------------- */
-static bool IRAM_ATTR gptimer_cb(gptimer_handle_t timer,
-                                 const gptimer_alarm_event_data_t *edata,
-                                 void *user_data)
+static bool IRAM_ATTR gptimer_cb(gptimer_handle_t timer, const gptimer_alarm_event_data_t *edata, void *user_data)
 {
     bool *p_led_state = (bool *)user_data;
     if (p_led_state == NULL) {
@@ -154,18 +156,20 @@ static void mic_task(void *pv)
             }
             // Envia para a fila (bloqueia se estiver cheia)
             if (xQueueSend(xRawQueue, &blk, portMAX_DELAY) != pdTRUE) {
-                ESP_LOGE(TAG, "Falha ao enviar para xRawQueue.");
+                ESP_LOGE(TAG_TMIC, "Falha ao enviar para xRawQueue.");
             } else {
-                ESP_LOGD(TAG, "mic_task: Enviado bloco com %zu samples para xRawQueue.", blk.length);
+                ESP_LOGD(TAG_TMIC, "mic_task: Enviado bloco com %zu samples para xRawQueue.", blk.length);
             }
         } else {
-            ESP_LOGW(TAG, "mic_task: Nenhuma amostra lida.");
+            ESP_LOGW(TAG_TMIC, "mic_task: Nenhuma amostra lida.");
         }
+        ESP_LOGI(TAG_TMIC, "Tempo de detecção: %.2f ms", (float)xTaskGetTickCount() * portTICK_PERIOD_MS);
 
         // Pequeno delay para ceder CPU
         vTaskDelay(pdMS_TO_TICKS(10));
     }
 }
+
 
 /** ----------------------------------------------------------------
  *  Tarefa: audio_task
@@ -183,7 +187,7 @@ static void audio_task(void *pv)
     biquad_t bandpass_filter;
     // Exemplo: passa banda entre 80 Hz e 1000 Hz
     bandpass_init(&bandpass_filter, SAMPLE_RATE, 80.0f, 1000.0f);
-    ESP_LOGI(TAG, "Filtro Band-Pass inicializado entre %.2f Hz e %.2f Hz.", 80.0f, 1000.0f);
+    ESP_LOGI(TAG_TAUD, "Filtro Band-Pass inicializado entre %.2f Hz e %.2f Hz.", 80.0f, 1000.0f);
 
     while (1)
     {
@@ -191,12 +195,12 @@ static void audio_task(void *pv)
         // Recebe bloco do mic_task
         if (xQueueReceive(xRawQueue, &raw, portMAX_DELAY) == pdTRUE)
         {
-            ESP_LOGD(TAG, "audio_task: Recebido bloco com %zu samples.", raw.length);
+            ESP_LOGD(TAG_TAUD, "audio_task: Recebido bloco com %zu samples.", raw.length);
 
             // Aplica filtro Band-Pass (opcional)
             float filtered_samples[BUFFER_SIZE];
             biquad_process(&bandpass_filter, raw.samples, filtered_samples, raw.length);
-            ESP_LOGD(TAG, "audio_task: Filtro Band-Pass aplicado.");
+            ESP_LOGD(TAG_TAUD, "audio_task: Filtro Band-Pass aplicado.");
 
             // Executa YIN no buffer filtrado
             float freq = yin_compute_pitch(filtered_samples, raw.length, SAMPLE_RATE, &yin_cfg);
@@ -209,19 +213,20 @@ static void audio_task(void *pv)
             const char *note_str = get_note(freq, out.note, sizeof(out.note));
 
             if (note_str) {
-                ESP_LOGI(TAG, "audio_task: Frequência detectada: %.2f Hz, Nota: %s", freq, note_str);
+                ESP_LOGI(TAG_TAUD, "audio_task: Frequência detectada: %.2f Hz, Nota: %s", freq, note_str);
             } else {
                 strcpy(out.note, "Unknown");
-                ESP_LOGW(TAG, "audio_task: Nota desconhecida para a frequência %.2f Hz.", freq);
+                ESP_LOGW(TAG_TAUD, "audio_task: Nota desconhecida para a frequência %.2f Hz.", freq);
             }
 
             // Envia para xResultQueue
             if (xQueueSend(xResultQueue, &out, portMAX_DELAY) != pdTRUE) {
-                ESP_LOGE(TAG, "Falha ao enviar para xResultQueue.");
+                ESP_LOGE(TAG_TAUD, "Falha ao enviar para xResultQueue.");
             } else {
-                ESP_LOGD(TAG, "audio_task: Enviado resultado para xResultQueue.");
+                ESP_LOGD(TAG_TAUD, "audio_task: Enviado resultado para xResultQueue.");
             }
         }
+        ESP_LOGI(TAG_TAUD, "Tempo de detecção: %.2f ms", (float)xTaskGetTickCount() * portTICK_PERIOD_MS);
 
         // Cede CPU
         vTaskDelay(pdMS_TO_TICKS(1));
@@ -246,7 +251,7 @@ static void comm_task(void *pv)
         {
             // Imprime no formato que o Python/Processing espera
             printf("FREQ=%.2fHz NOTE=%s\n", rcv.frequency, rcv.note);
-            ESP_LOGD(TAG, "comm_task: Frequência %.2fHz, Nota %s impressa.", rcv.frequency, rcv.note);
+            ESP_LOGD(TAG_TCOM, "comm_task: Frequência %.2fHz, Nota %s impressa.", rcv.frequency, rcv.note);
 
             // (Opcional) imprimir amostras
             for (size_t i = 0; i < rcv.length; i++) {
@@ -257,7 +262,7 @@ static void comm_task(void *pv)
 
             // Sinaliza fim do bloco
             printf("END\n");
-            ESP_LOGD(TAG, "comm_task: Sinal de fim de bloco 'END' impresso.");
+            ESP_LOGD(TAG_TCOM, "comm_task: Sinal de fim de bloco 'END' impresso.");
             vTaskDelay(pdMS_TO_TICKS(5));
         }
 
@@ -279,8 +284,13 @@ void app_main(void)
     configure_led_timer();
 
     // 2) Inicializa I2S
-    i2s_init();
-    ESP_LOGI(TAG, "I2S inicializado.");
+    ESP_LOGI(TAG, "Inicializando I2S...");
+    esp_err_t ret = i2s_init();
+    if (ret != ESP_OK) {
+        ESP_LOGE(TAG, "Inicialização do I2S falhou. Reiniciando...");
+        esp_restart();
+    }
+    ESP_LOGI(TAG, "I2S inicializado com sucesso.");
 
     // 3) Cria as filas
     xRawQueue    = xQueueCreate(5, sizeof(raw_block_t));
@@ -299,18 +309,21 @@ void app_main(void)
     TaskHandle_t audio_task_handle = NULL;
     TaskHandle_t comm_task_handle = NULL;
 
+    ESP_LOGI(TAG, "Criando mic_task...");
     if (xTaskCreatePinnedToCore(mic_task, "mic_task", 16384, NULL, 7, &mic_task_handle, 0) != pdPASS) {
         ESP_LOGE(TAG, "Falha ao criar mic_task.");
     } else {
         ESP_LOGI(TAG, "mic_task criada com sucesso.");
     }
 
+    ESP_LOGI(TAG, "Criando audio_task...");
     if (xTaskCreatePinnedToCore(audio_task, "audio_task", 16384, NULL, 6, &audio_task_handle, 1) != pdPASS) {
         ESP_LOGE(TAG, "Falha ao criar audio_task.");
     } else {
         ESP_LOGI(TAG, "audio_task criada com sucesso.");
     }
 
+    ESP_LOGI(TAG, "Criando comm_task...");
     if (xTaskCreatePinnedToCore(comm_task, "comm_task", 8192, NULL, 5, &comm_task_handle, 1) != pdPASS) {
         ESP_LOGE(TAG, "Falha ao criar comm_task.");
     } else {

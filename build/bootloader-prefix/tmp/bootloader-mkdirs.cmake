@@ -4,7 +4,7 @@
 cmake_minimum_required(VERSION 3.5)
 
 file(MAKE_DIRECTORY
-  "C:/Users/kaduc/esp/v5.4/esp-idf/components/bootloader/subproject"
+  "C:/Users/kaduc/esp/v5.3.1/esp-idf/components/bootloader/subproject"
   "C:/Users/kaduc/FFT/build/bootloader"
   "C:/Users/kaduc/FFT/build/bootloader-prefix"
   "C:/Users/kaduc/FFT/build/bootloader-prefix/tmp"

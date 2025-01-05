@@ -1,7 +1,7 @@
 {
     "version":            "1.1",
     "project_name":       "FFT",
-    "project_version":    "1",
+    "project_version":    "2817074-dirty",
     "project_path":       "C:/Users/kaduc/FFT",
     "idf_path":           "C:/Users/kaduc/esp/v5.3.1/esp-idf",
     "build_dir":          "C:/Users/kaduc/FFT/build",
@@ -1240,7 +1240,7 @@
             "managed_reqs": [],
             "managed_priv_reqs": [],
             "file": "C:/Users/kaduc/FFT/build/esp-idf/mylib/libmylib.a",
-            "sources": [ "C:/Users/kaduc/FFT/components/mylib/src/fft.c", "C:/Users/kaduc/FFT/components/mylib/src/mic.c", "C:/Users/kaduc/FFT/components/mylib/src/tuner.c", "C:/Users/kaduc/FFT/components/mylib/src/buttons.c", "C:/Users/kaduc/FFT/components/mylib/src/filters.c", "C:/Users/kaduc/FFT/components/mylib/src/yin.c" ],
+            "sources": [ "C:/Users/kaduc/FFT/components/mylib/src/fft.c", "C:/Users/kaduc/FFT/components/mylib/src/mic.c", "C:/Users/kaduc/FFT/components/mylib/src/tuner.c", "C:/Users/kaduc/FFT/components/mylib/src/filters.c", "C:/Users/kaduc/FFT/components/mylib/src/yin.c" ],
             "include_dirs": [ "include" ]
         },
         "newlib": {

@@ -1,33 +1,40 @@
-#include <stdio.h>
-#include <stdlib.h>
-#include <inttypes.h>
+#include "esp_log.h"
+#include "driver/i2s_std.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
-#include "esp_log.h"
-
-#include "driver/gpio.h"
-#include "driver/i2s_std.h"
-
 #include "mic.h"
 #include "var.h"
 
-// Handle do canal I2S
-static i2s_chan_handle_t rx_handle;
-
+static i2s_chan_handle_t rx_handle = NULL;
 static const char *TAG = "MIC";
 
-void i2s_init(void)
+// Callback para eventos de recepção
+static void i2s_recv_callback(i2s_chan_handle_t handle, const i2s_event_data_t *edata, void *user_ctx)
+{
+    // Implementação opcional: processar dados recebidos imediatamente
+    // Se não for necessário, pode ficar vazio
+    ESP_LOGD(TAG, "i2s_recv_callback: Evento de recepção.");
+}
+
+esp_err_t i2s_init(void)
 {
     // Cria o canal I2S: Modo MASTER + RX
     i2s_chan_config_t chan_cfg = I2S_CHANNEL_DEFAULT_CONFIG(I2S_PORT, I2S_ROLE_MASTER);
     
-    esp_err_t ret = i2s_new_channel(&chan_cfg, NULL, &rx_handle);
+    // Define callbacks
+    i2s_event_callbacks_t cbs = {
+        .on_recv = i2s_recv_callback,
+    };
+    
+    ESP_LOGI(TAG, "Criando novo canal I2S...");
+    esp_err_t ret = i2s_new_channel(&chan_cfg, &cbs, &rx_handle);
     
     if (ret != ESP_OK) {
         ESP_LOGE(TAG, "Falha em i2s_new_channel: %s", esp_err_to_name(ret));
-        return;
+        return ret;
     }
 
+    ESP_LOGI(TAG, "Inicializando modo padrão do I2S...");
     i2s_std_config_t std_cfg = {
         .clk_cfg = I2S_STD_CLK_DEFAULT_CONFIG(SAMPLE_RATE),
         .slot_cfg = {
@@ -59,17 +66,19 @@ void i2s_init(void)
 
     ret = i2s_channel_init_std_mode(rx_handle, &std_cfg);
     if (ret != ESP_OK) {
-        ESP_LOGE(TAG, "Falha em i2s_channel_init_pdm_rx_mode: %s", esp_err_to_name(ret));
-        return;
+        ESP_LOGE(TAG, "Falha em i2s_channel_init_std_mode: %s", esp_err_to_name(ret));
+        return ret;
     }
 
+    ESP_LOGI(TAG, "Habilitando canal I2S...");
     ret = i2s_channel_enable(rx_handle);
     if (ret != ESP_OK) {
         ESP_LOGE(TAG, "Falha ao habilitar canal I2S: %s", esp_err_to_name(ret));
-        return;
+        return ret;
     }
 
     ESP_LOGI(TAG, "I2S RX 24-bit inicializado com sucesso.");
+    return ESP_OK;
 }
 
 size_t i2s_read_samples(float *buffer, size_t length)

@@ -7,7 +7,7 @@
 /**
  * @brief Inicializa o I2S para ler dados do INMP441.
  */
-void i2s_init(void);
+esp_err_t i2s_init(void);
 
 /**
  * @brief Lê amostras (float) do microfone ([-1..+1]).
