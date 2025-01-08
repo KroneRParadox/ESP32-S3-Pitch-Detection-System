@@ -17,6 +17,7 @@ C:/Users/kaduc/FFT/build/esp-idf/hal/libhal.a
 C:/Users/kaduc/FFT/build/esp-idf/log/liblog.a
 C:/Users/kaduc/FFT/build/esp-idf/heap/libheap.a
 C:/Users/kaduc/FFT/build/esp-idf/soc/libsoc.a
+C:/Users/kaduc/FFT/build/esp-idf/esp_security/libesp_security.a
 C:/Users/kaduc/FFT/build/esp-idf/esp_hw_support/libesp_hw_support.a
 C:/Users/kaduc/FFT/build/esp-idf/freertos/libfreertos.a
 C:/Users/kaduc/FFT/build/esp-idf/newlib/libnewlib.a
@@ -75,10 +76,10 @@ C:/Users/kaduc/FFT/build/esp-idf/espcoredump/libespcoredump.a
 C:/Users/kaduc/FFT/build/esp-idf/wear_levelling/libwear_levelling.a
 C:/Users/kaduc/FFT/build/esp-idf/fatfs/libfatfs.a
 C:/Users/kaduc/FFT/build/esp-idf/json/libjson.a
-C:/Users/kaduc/FFT/build/esp-idf/led_strip/libled_strip.a
 C:/Users/kaduc/FFT/build/esp-idf/mqtt/libmqtt.a
 C:/Users/kaduc/FFT/build/esp-idf/nvs_sec_provider/libnvs_sec_provider.a
 C:/Users/kaduc/FFT/build/esp-idf/perfmon/libperfmon.a
+C:/Users/kaduc/FFT/build/esp-idf/rt/librt.a
 C:/Users/kaduc/FFT/build/esp-idf/spiffs/libspiffs.a
 C:/Users/kaduc/FFT/build/esp-idf/touch_element/libtouch_element.a
 C:/Users/kaduc/FFT/build/esp-idf/usb/libusb.a

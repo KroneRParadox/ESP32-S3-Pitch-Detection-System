@@ -19,11 +19,13 @@
 #include "esp_log.h"
 
 // Cabeçalhos do Projeto
-#include "var.h"       // Definições de pinos, buffer, sample rate etc.
+#include "def.h"       // Definições de pinos, buffer, sample rate etc.
 #include "mic.h"       // i2s_init(), i2s_read_samples()
 #include "filters.h"   // biquad_t, bandpass_init(), biquad_process()
-#include "yin.h"       // yin_compute_pitch(), yin_config_t
+#include "yin.h"       // yin_init(), yin_detect_pitch(), yin_deinit()
 #include "tuner.h"     // get_note()
+#include "fft.h"       // fft(), calculate_magnitude(), peak_frequency()
+#include "test.h"      // run_all_tests()
 
 /** ----------------------------------------------------------------
  *  Estruturas e Filas
@@ -42,7 +44,7 @@ typedef struct {
     float  samples[BUFFER_SIZE];
     size_t length;
     float  frequency;
-    char   note[8];   // ex.: "A4"
+    char   note[16];   // ex.: "A4"
 } audio_data_t;
 
 // Filas (queues) globais
@@ -53,6 +55,11 @@ static const char *TAG_TMIC = "MIC_TASK";
 static const char *TAG_TCOM = "COM_TASK";
 static const char *TAG_TAUD = "AUD_TASK";
 
+// Definição de test_frequencies
+const float test_frequencies[NUM_TEST_FREQUENCIES] = {
+    110.0f, 220.0f, 330.0f, 440.0f,
+    550.0f, 660.0f, 770.0f, 880.0f, 990.0f
+};
 
 /** ----------------------------------------------------------------
  *  GPTimer callback -> pisca LED (opcional)
@@ -181,13 +188,24 @@ static void mic_task(void *pv)
 static void audio_task(void *pv)
 {
     // Configuração do YIN
-    yin_config_t yin_cfg = YIN_DEFAULT_CONFIG(BUFFER_SIZE);
+    Yin yin;
+    esp_err_t ret_yin = yin_init(&yin, BUFFER_SIZE, SAMPLE_RATE, YIN_THRESHOLD, YIN_THRESHOLD_FIXED, 0.1f, 0.2f, 0.01f);
+    if (ret_yin != ESP_OK) {
+        ESP_LOGE(TAG_TAUD, "Falha ao inicializar YIN.");
+        vTaskDelete(NULL);
+    }
 
     // Inicializa filtro Band-Pass (opcional)
     biquad_t bandpass_filter;
     // Exemplo: passa banda entre 80 Hz e 1000 Hz
-    bandpass_init(&bandpass_filter, SAMPLE_RATE, 80.0f, 1000.0f);
-    ESP_LOGI(TAG_TAUD, "Filtro Band-Pass inicializado entre %.2f Hz e %.2f Hz.", 80.0f, 1000.0f);
+    bandpass_init(&bandpass_filter, SAMPLE_RATE, BANDPASS_LOW_FREQ, BANDPASS_HIGH_FREQ);
+    ESP_LOGI(TAG_TAUD, "Filtro Band-Pass inicializado entre %.2f Hz e %.2f Hz.", BANDPASS_LOW_FREQ, BANDPASS_HIGH_FREQ);
+
+    // Inicializa a estrutura de smoothing
+    smoothing_t smoothing;
+    // Implement smoothing_init function in utils.c or define it here
+    // Assuming smoothing_init sets all to zero
+    memset(&smoothing, 0, sizeof(smoothing_t));
 
     while (1)
     {
@@ -203,19 +221,28 @@ static void audio_task(void *pv)
             ESP_LOGD(TAG_TAUD, "audio_task: Filtro Band-Pass aplicado.");
 
             // Executa YIN no buffer filtrado
-            float freq = yin_compute_pitch(filtered_samples, raw.length, SAMPLE_RATE, &yin_cfg);
+            float freq = 0.0f;
+            ret_yin = yin_detect_pitch(&yin, filtered_samples, &freq);
+            if (ret_yin != 0 || freq < 0.0f) {
+                ESP_LOGW(TAG_TAUD, "audio_task: YIN não detectou pitch válido.");
+                freq = -1.0f;
+            }
+
             audio_data_t out;
             out.length = raw.length;
             memcpy(out.samples, filtered_samples, raw.length * sizeof(float));
             out.frequency = freq;
 
             // Chama get_note com o buffer de saída correto
-            const char *note_str = get_note(freq, out.note, sizeof(out.note));
+            note_t note;
+            int note_str = get_note(freq, &note);
 
-            if (note_str) {
-                ESP_LOGI(TAG_TAUD, "audio_task: Frequência detectada: %.2f Hz, Nota: %s", freq, note_str);
+            if (note_str == 0) {
+                snprintf(out.note, sizeof(out.note), "%s%d", note.note, note.octave);
+                ESP_LOGI(TAG_TAUD, "audio_task: Frequência detectada: %.2f Hz, Nota: %s", freq, out.note);
             } else {
-                strcpy(out.note, "Unknown");
+                strncpy(out.note, "Unknown", sizeof(out.note)-1);
+                out.note[sizeof(out.note)-1] = '\0';
                 ESP_LOGW(TAG_TAUD, "audio_task: Nota desconhecida para a frequência %.2f Hz.", freq);
             }
 
@@ -254,16 +281,16 @@ static void comm_task(void *pv)
             ESP_LOGD(TAG_TCOM, "comm_task: Frequência %.2fHz, Nota %s impressa.", rcv.frequency, rcv.note);
 
             // (Opcional) imprimir amostras
-            for (size_t i = 0; i < rcv.length; i++) {
+            /*for (size_t i = 0; i < rcv.length; i++) {
                 printf("%.3f\n", rcv.samples[i]);
                 // Considerar reduzir ou remover o delay para melhorar a velocidade
-                // vTaskDelay(pdMS_TO_TICKS(10));
-            }
+                vTaskDelay(pdMS_TO_TICKS(5));
+            }*/
 
             // Sinaliza fim do bloco
             printf("END\n");
             ESP_LOGD(TAG_TCOM, "comm_task: Sinal de fim de bloco 'END' impresso.");
-            vTaskDelay(pdMS_TO_TICKS(5));
+            vTaskDelay(pdMS_TO_TICKS(50000));
         }
 
     }
@@ -279,9 +306,13 @@ static void comm_task(void *pv)
 void app_main(void)
 {
     ESP_LOGI(TAG, "Iniciando sistema de detecção de pitch...");
+    #if TESTE == 1
+    run_all_tests();
+    #endif
 
     // 1) Configura GPTimer para piscar LED (opcional)
     configure_led_timer();
+
 
     // 2) Inicializa I2S
     ESP_LOGI(TAG, "Inicializando I2S...");
@@ -329,6 +360,7 @@ void app_main(void)
     } else {
         ESP_LOGI(TAG, "comm_task criada com sucesso.");
     }
+
 
     // 5) Loop infinito
     while (1) {

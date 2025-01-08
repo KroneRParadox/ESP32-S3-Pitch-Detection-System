@@ -4,8 +4,6 @@ C:/Users/kaduc/FFT/build/bootloader/CMakeFiles/save-defconfig.dir
 C:/Users/kaduc/FFT/build/bootloader/CMakeFiles/gen_project_binary.dir
 C:/Users/kaduc/FFT/build/bootloader/CMakeFiles/app.dir
 C:/Users/kaduc/FFT/build/bootloader/CMakeFiles/erase_flash.dir
-C:/Users/kaduc/FFT/build/bootloader/CMakeFiles/uf2.dir
-C:/Users/kaduc/FFT/build/bootloader/CMakeFiles/uf2-app.dir
 C:/Users/kaduc/FFT/build/bootloader/CMakeFiles/merge-bin.dir
 C:/Users/kaduc/FFT/build/bootloader/CMakeFiles/monitor.dir
 C:/Users/kaduc/FFT/build/bootloader/CMakeFiles/_project_elf_src.dir
@@ -16,6 +14,8 @@ C:/Users/kaduc/FFT/build/bootloader/CMakeFiles/size-components.dir
 C:/Users/kaduc/FFT/build/bootloader/CMakeFiles/dfu.dir
 C:/Users/kaduc/FFT/build/bootloader/CMakeFiles/dfu-list.dir
 C:/Users/kaduc/FFT/build/bootloader/CMakeFiles/dfu-flash.dir
+C:/Users/kaduc/FFT/build/bootloader/CMakeFiles/uf2.dir
+C:/Users/kaduc/FFT/build/bootloader/CMakeFiles/uf2-app.dir
 C:/Users/kaduc/FFT/build/bootloader/CMakeFiles/edit_cache.dir
 C:/Users/kaduc/FFT/build/bootloader/CMakeFiles/rebuild_cache.dir
 C:/Users/kaduc/FFT/build/bootloader/esp-idf/CMakeFiles/edit_cache.dir
@@ -55,6 +55,8 @@ C:/Users/kaduc/FFT/build/bootloader/esp-idf/efuse/CMakeFiles/show_efuse_table.di
 C:/Users/kaduc/FFT/build/bootloader/esp-idf/efuse/CMakeFiles/efuse_test_table.dir
 C:/Users/kaduc/FFT/build/bootloader/esp-idf/efuse/CMakeFiles/edit_cache.dir
 C:/Users/kaduc/FFT/build/bootloader/esp-idf/efuse/CMakeFiles/rebuild_cache.dir
+C:/Users/kaduc/FFT/build/bootloader/esp-idf/esp_security/CMakeFiles/edit_cache.dir
+C:/Users/kaduc/FFT/build/bootloader/esp-idf/esp_security/CMakeFiles/rebuild_cache.dir
 C:/Users/kaduc/FFT/build/bootloader/esp-idf/esp_system/CMakeFiles/__idf_esp_system.dir
 C:/Users/kaduc/FFT/build/bootloader/esp-idf/esp_system/CMakeFiles/edit_cache.dir
 C:/Users/kaduc/FFT/build/bootloader/esp-idf/esp_system/CMakeFiles/rebuild_cache.dir

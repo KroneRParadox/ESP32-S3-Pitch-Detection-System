@@ -7,7 +7,7 @@
         "IDF_CCACHE_ENABLE": "1",
         "ESP_ROM_ELF_DIR": "C:\\Users\\kaduc\\.espressif\\tools\\esp-rom-elfs\\20240305/"
     },
-    "idf.espIdfPathWin": "C:\\Users\\kaduc\\esp\\v5.3.1\\esp-idf",
+    "idf.espIdfPathWin": "C:\\Users\\kaduc\\esp\\v5.4\\esp-idf",
     "idf.openOcdConfigs": [
         "interface/ftdi/esp32_devkitj_v1.cfg",
         "target/esp32s3.cfg"
@@ -27,7 +27,8 @@
         "freertos.h": "c",
         "fft.h": "c",
         "esp_heap_caps.h": "c",
-        "var.h": "c"
+        "var.h": "c",
+        "utils.h": "c"
     },
     "idf.gitPathWin": "C:\\Users\\kaduc\\.espressif\\tools\\idf-git\\2.39.2\\cmd\\git.exe"
 }

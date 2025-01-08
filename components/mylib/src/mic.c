@@ -1,40 +1,33 @@
-#include "esp_log.h"
-#include "driver/i2s_std.h"
-#include "freertos/FreeRTOS.h"
-#include "freertos/task.h"
+// src/mic.c
 #include "mic.h"
-#include "var.h"
+#include "utils.h"
+#include "esp_log.h"
 
+static const char *TAG_MIC = "MIC";
+
+// Handle do Canal I2S RX
 static i2s_chan_handle_t rx_handle = NULL;
-static const char *TAG = "MIC";
 
-// Callback para eventos de recepção
-static void i2s_recv_callback(i2s_chan_handle_t handle, const i2s_event_data_t *edata, void *user_ctx)
-{
-    // Implementação opcional: processar dados recebidos imediatamente
-    // Se não for necessário, pode ficar vazio
-    ESP_LOGD(TAG, "i2s_recv_callback: Evento de recepção.");
-}
 
 esp_err_t i2s_init(void)
 {
+    if (rx_handle != NULL) {
+        ESP_LOGW(TAG_MIC, "Canal I2S já está inicializado.");
+        return ESP_OK;
+    }
+    
     // Cria o canal I2S: Modo MASTER + RX
     i2s_chan_config_t chan_cfg = I2S_CHANNEL_DEFAULT_CONFIG(I2S_PORT, I2S_ROLE_MASTER);
     
-    // Define callbacks
-    i2s_event_callbacks_t cbs = {
-        .on_recv = i2s_recv_callback,
-    };
-    
-    ESP_LOGI(TAG, "Criando novo canal I2S...");
-    esp_err_t ret = i2s_new_channel(&chan_cfg, &cbs, &rx_handle);
+    ESP_LOGI(TAG_MIC, "Criando novo canal I2S...");
+    esp_err_t ret = i2s_new_channel(&chan_cfg, NULL, &rx_handle);
     
     if (ret != ESP_OK) {
-        ESP_LOGE(TAG, "Falha em i2s_new_channel: %s", esp_err_to_name(ret));
+        ESP_LOGE(TAG_MIC, "Falha em i2s_new_channel: %s", esp_err_to_name(ret));
         return ret;
     }
 
-    ESP_LOGI(TAG, "Inicializando modo padrão do I2S...");
+    ESP_LOGI(TAG_MIC, "Inicializando modo padrão do I2S...");
     i2s_std_config_t std_cfg = {
         .clk_cfg = I2S_STD_CLK_DEFAULT_CONFIG(SAMPLE_RATE),
         .slot_cfg = {
@@ -57,7 +50,7 @@ esp_err_t i2s_init(void)
             .din  = I2S_SD,
             .invert_flags = {
                 .mclk_inv = false,
-                // Se ver ruído, teste .bclk_inv = true
+                //ruído -> teste .bclk_inv = true
                 .bclk_inv = false,
                 .ws_inv   = false,
             },
@@ -66,25 +59,29 @@ esp_err_t i2s_init(void)
 
     ret = i2s_channel_init_std_mode(rx_handle, &std_cfg);
     if (ret != ESP_OK) {
-        ESP_LOGE(TAG, "Falha em i2s_channel_init_std_mode: %s", esp_err_to_name(ret));
+        ESP_LOGE(TAG_MIC, "Falha em i2s_channel_init_std_mode: %s", esp_err_to_name(ret));
+        i2s_del_channel(rx_handle);
+        rx_handle = NULL;
         return ret;
     }
 
-    ESP_LOGI(TAG, "Habilitando canal I2S...");
+    ESP_LOGI(TAG_MIC, "Habilitando canal I2S...");
     ret = i2s_channel_enable(rx_handle);
     if (ret != ESP_OK) {
-        ESP_LOGE(TAG, "Falha ao habilitar canal I2S: %s", esp_err_to_name(ret));
+        ESP_LOGE(TAG_MIC, "Falha ao habilitar canal I2S: %s", esp_err_to_name(ret));
+        i2s_del_channel(rx_handle);
+        rx_handle = NULL;
         return ret;
     }
 
-    ESP_LOGI(TAG, "I2S RX 24-bit inicializado com sucesso.");
+    ESP_LOGI(TAG_MIC, "I2S RX 24-bit inicializado com sucesso.");
     return ESP_OK;
 }
 
 size_t i2s_read_samples(float *buffer, size_t length)
 {
     if (rx_handle == NULL) {
-        ESP_LOGE(TAG, "I2S não foi inicializado.");
+        ESP_LOGE(TAG_MIC, "I2S não foi inicializado.");
         return 0;
     }
 
@@ -94,9 +91,9 @@ size_t i2s_read_samples(float *buffer, size_t length)
     size_t to_read = length * sizeof(int32_t);
 
     // Bloqueia até ler
-    esp_err_t ret = i2s_channel_read(rx_handle, temp_buf, to_read, &bytes_read, portMAX_DELAY);
+    esp_err_t ret = i2s_channel_read(rx_handle, temp_buf, to_read, &bytes_read,  pdMS_TO_TICKS(1000));
     if (ret != ESP_OK) {
-        ESP_LOGE(TAG, "Erro ao ler do I2S: %s", esp_err_to_name(ret));
+        ESP_LOGE(TAG_MIC, "Erro ao ler do I2S: %s", esp_err_to_name(ret));
         return 0;
     }
 
@@ -113,8 +110,19 @@ size_t i2s_read_samples(float *buffer, size_t length)
             d |= 0xFF000000;
         }
         // Normalização para float
-        buffer[i] = d / (float)(1 << 23);
+        buffer[i] = (float)d / (float)(1 << 23);
     }
-    
+    ESP_LOGD(TAG_MIC, "Processamento de %zu samples concluído.", samples_read);
+
     return samples_read;
+}
+
+void i2s_deinit(void)
+{
+    if (rx_handle != NULL) {
+        i2s_channel_disable(rx_handle);
+        i2s_del_channel(rx_handle);
+        rx_handle = NULL;
+        ESP_LOGI(TAG_MIC, "Canal I2S desativado e deletado.");
+    }
 }
