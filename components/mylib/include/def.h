@@ -25,7 +25,7 @@
 
 // Configurações de Teste via ou #define
 
-#define TESTE 2 
+#define TESTE 0 
 
 #define NUM_TEST_FREQUENCIES 9
 extern const float test_frequencies[NUM_TEST_FREQUENCIES];

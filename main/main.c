@@ -198,7 +198,7 @@ static void mic_task(void *pv)
 
         TickType_t end_ticks = xTaskGetTickCount();
         float elapsed_ms = (float)(end_ticks - start_ticks) * portTICK_PERIOD_MS;
-        ESP_LOGD(TAG_TMIC, "Tempo de captura mic_task: %.2f ms", elapsed_ms);
+        ESP_LOGD(TAG_TMIC, "Tempo de captura mic_task: %.2f ms", elapsed_ms); //21 ms a 48 kHz
 
         // Cede CPU
         vTaskDelay(pdMS_TO_TICKS(100));
