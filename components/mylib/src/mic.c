@@ -31,11 +31,11 @@ esp_err_t i2s_init(void)
     i2s_std_config_t std_cfg = {
         .clk_cfg = I2S_STD_CLK_DEFAULT_CONFIG(SAMPLE_RATE),
         .slot_cfg = {
-            .data_bit_width = I2S_DATA_BIT_WIDTH_24BIT,
+            .data_bit_width = I2S_DATA_BIT_WIDTH_32BIT,
             .slot_bit_width = I2S_SLOT_BIT_WIDTH_32BIT,
             .slot_mode      = I2S_SLOT_MODE_MONO,
             .slot_mask      = I2S_STD_SLOT_LEFT, // pino L/R -> GND => canal esquerdo
-            .ws_width       = 24,
+            .ws_width       = 32,
             .ws_pol         = false,
             .bit_shift      = true,   // I2S Philips
             .left_align     = false,  // I2S Philips
@@ -106,7 +106,7 @@ size_t i2s_read_samples(float *buffer, size_t length)
         // Conversão para 24 bits se for INMP441: 
         // SHIFT 8 (24 bits significativos) e normaliza p/ [-1, +1]
         int32_t d = (temp_buf[i] >> 8);
-        if (d & 0x00800000) { // Verifica o bit de sinal (24º bit)
+        if (d & 0x800000) { // Verifica o bit de sinal (24º bit)
             d |= 0xFF000000;
         }
         // Normalização para float

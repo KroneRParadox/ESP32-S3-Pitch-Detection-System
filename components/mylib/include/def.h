@@ -24,7 +24,7 @@
 
 // Configurações de Teste via ou #define
 
-#define TESTE 1 // 1: Teste com seno puro, 2: Teste com seno + ruído
+#define TESTE 0 
 
 #define NUM_TEST_FREQUENCIES 9
 extern const float test_frequencies[NUM_TEST_FREQUENCIES];
@@ -33,21 +33,21 @@ extern const float test_frequencies[NUM_TEST_FREQUENCIES];
 #define ENABLE_VERIFICATION 1
 
 // Pinos do I2S 
-#define I2S_PORT        (0)    // I2S número 0
-#define I2S_SCK         12    // Pino de Clock BCLK
-#define I2S_WS          11    // Pino de Word Select LRCLK
-#define I2S_SD          10    // Pino de Dados DIN do microfone INMP441
+#define I2S_PORT        (I2S_NUM_0)    // I2S número 0
+#define I2S_SCK         GPIO_NUM_12    // Pino de Clock BCLK
+#define I2S_WS          GPIO_NUM_11    // Pino de Word Select LRCLK
+#define I2S_SD          GPIO_NUM_10    // Pino de Dados DIN do microfone INMP441
 
 // Configurações de Amostragem
-#define SAMPLE_RATE     (48000)        // Taxa de amostragem em Hz (16kHz ou 48kHz são comuns para INMP441)
-#define BUFFER_SIZE     (2048)         // Tamanho do buffer de áudio para leitura e processamento
+#define SAMPLE_RATE     (44100)        // Taxa de amostragem em Hz (16kHz ou 48kHz são comuns para INMP441)
+#define BUFFER_SIZE     (1 << 11)         // Tamanho do buffer de áudio para leitura e processamento
 
 // Definições de LED e Temporizador
 #define LED_GPIO        GPIO_NUM_9     // Pino do LED indicador
 #define LED_BLINK_HZ     (1)            // Frequência de piscar do LED (1 Hz -> 1 segundo)
 
 // Definições do Threshold Fixo
-#define FIXED_THRESHOLD 0.10f          // Threshold fixo para o algoritmo YIN
+#define FIXED_THRESHOLD 0.05f          // Threshold fixo para o algoritmo YIN
 
 #define SMOOTHING_WINDOW_SIZE 10  // Ajuste conforme necessário
 

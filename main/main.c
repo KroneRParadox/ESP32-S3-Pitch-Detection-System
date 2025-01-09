@@ -102,7 +102,7 @@ static void configure_led_timer(void)
 
     // Configuração do alarme para piscar o LED a cada segundo
     gptimer_alarm_config_t alarm_cfg = {
-        .alarm_count              = 1000000, // 1 segundo
+        .alarm_count              = 500000, // 1 segundo
         .reload_count             = 0,
         .flags.auto_reload_on_alarm = true,
     };
@@ -154,7 +154,11 @@ static void mic_task(void *pv)
         // Lê amostras do microfone
         blk.length = i2s_read_samples(blk.samples, BUFFER_SIZE);
         // (Opcional) Debug local:
-        // printf("mic_task: lidos %zu samples.\n", blk.length);
+        //printf("mic_task: lidos %zu samples.\n", blk.length);
+        for (size_t i = 0; i < blk.length && i < 10; i++) { 
+            ESP_LOGI(TAG_TMIC, "Sample[%zu]: %.5f", i, blk.samples[i]);
+        }
+
 
         if (blk.length > 0) {
             // Garante que não excede BUFFER_SIZE
@@ -165,7 +169,7 @@ static void mic_task(void *pv)
             if (xQueueSend(xRawQueue, &blk, portMAX_DELAY) != pdTRUE) {
                 ESP_LOGE(TAG_TMIC, "Falha ao enviar para xRawQueue.");
             } else {
-                ESP_LOGD(TAG_TMIC, "mic_task: Enviado bloco com %zu samples para xRawQueue.", blk.length);
+                ESP_LOGI(TAG_TMIC, "mic_task: Enviado bloco com %zu samples para xRawQueue.", blk.length);
             }
         } else {
             ESP_LOGW(TAG_TMIC, "mic_task: Nenhuma amostra lida.");
@@ -213,7 +217,7 @@ static void audio_task(void *pv)
         // Recebe bloco do mic_task
         if (xQueueReceive(xRawQueue, &raw, portMAX_DELAY) == pdTRUE)
         {
-            ESP_LOGD(TAG_TAUD, "audio_task: Recebido bloco com %zu samples.", raw.length);
+            ESP_LOGI(TAG_TAUD, "audio_task: Recebido bloco com %zu samples.", raw.length);
 
             // Aplica filtro Band-Pass (opcional)
             float filtered_samples[BUFFER_SIZE];
@@ -324,8 +328,8 @@ void app_main(void)
     ESP_LOGI(TAG, "I2S inicializado com sucesso.");
 
     // 3) Cria as filas
-    xRawQueue    = xQueueCreate(5, sizeof(raw_block_t));
-    xResultQueue = xQueueCreate(5, sizeof(audio_data_t));
+    xRawQueue    = xQueueCreate(10, sizeof(raw_block_t));
+    xResultQueue = xQueueCreate(10, sizeof(audio_data_t));
 
     if (!xRawQueue || !xResultQueue) {
         ESP_LOGE(TAG, "Erro ao criar filas.");
@@ -341,21 +345,21 @@ void app_main(void)
     TaskHandle_t comm_task_handle = NULL;
 
     ESP_LOGI(TAG, "Criando mic_task...");
-    if (xTaskCreatePinnedToCore(mic_task, "mic_task", 16384, NULL, 7, &mic_task_handle, 0) != pdPASS) {
+    if (xTaskCreatePinnedToCore(mic_task, "mic_task", 32768, NULL, 7, &mic_task_handle, 0) != pdPASS) {
         ESP_LOGE(TAG, "Falha ao criar mic_task.");
     } else {
         ESP_LOGI(TAG, "mic_task criada com sucesso.");
     }
 
     ESP_LOGI(TAG, "Criando audio_task...");
-    if (xTaskCreatePinnedToCore(audio_task, "audio_task", 16384, NULL, 6, &audio_task_handle, 1) != pdPASS) {
+    if (xTaskCreatePinnedToCore(audio_task, "audio_task", 32768, NULL, 6, &audio_task_handle, 1) != pdPASS) {
         ESP_LOGE(TAG, "Falha ao criar audio_task.");
     } else {
         ESP_LOGI(TAG, "audio_task criada com sucesso.");
     }
 
     ESP_LOGI(TAG, "Criando comm_task...");
-    if (xTaskCreatePinnedToCore(comm_task, "comm_task", 8192, NULL, 5, &comm_task_handle, 1) != pdPASS) {
+    if (xTaskCreatePinnedToCore(comm_task, "comm_task", 16384, NULL, 5, &comm_task_handle, 1) != pdPASS) {
         ESP_LOGE(TAG, "Falha ao criar comm_task.");
     } else {
         ESP_LOGI(TAG, "comm_task criada com sucesso.");

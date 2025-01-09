@@ -14,10 +14,11 @@ static const char *TAG_FFT = "FFT";
  * @param imag Buffer de partes imaginárias.
  * @param n    Número de pontos.
  */
-static void bit_reversal(float *real, float *imag, size_t n) { // Marcado como static
+static void bit_reversal(float *real, float *imag, size_t n) {
     size_t j = 0;
     for (size_t i = 0; i < n; i++) {
         if (i < j) {
+            // Troca os elementos
             float tmp_real = real[i];
             float tmp_imag = imag[i];
             real[i] = real[j];
@@ -40,9 +41,9 @@ static void bit_reversal(float *real, float *imag, size_t n) { // Marcado como s
  * @param imag Array de floats com parte imaginária
  * @param n    Tamanho (potência de 2)
  **/
-void fft(float *real, float *imag, size_t n) { // Sem 'static'
+void fft(float *real, float *imag, size_t n) {
     if ((n & (n - 1)) != 0) {
-        ESP_LOGE(TAG_FFT, "FFT : n não é potência de 2.");
+        ESP_LOGE(TAG_FFT, "FFT: n não é potência de 2.");
         return;
     }
 
@@ -60,23 +61,20 @@ void fft(float *real, float *imag, size_t n) { // Sem 'static'
             for (size_t x = 0; x < s; x++) {
                 size_t t = k + x + s;
 
-                // Calcula wr * real[t] - wi * imag[t]
+                // Cálculo dos fatores de torção
                 float tr = wr * real[t] - wi * imag[t];
-
-                // Calcula wr * imag[t] + wi * real[t]
                 float ti = wr * imag[t] + wi * real[t];
 
-                // Atualiza real[t] e imag[t]
-                float new_real_t = real[k + x] - tr;
-                float new_imag_t = imag[k + x] - ti;
-                real[k + x] = new_real_t;
-                imag[k + x] = new_imag_t;
+                // Combinação dos elementos
+                float u_real = real[k + x];
+                float u_imag = imag[k + x];
 
-                // Atualiza real[k + x] e imag[k + x]
-                real[k + x] += tr;
-                imag[k + x] += ti;
+                real[k + x] = u_real + tr;
+                imag[k + x] = u_imag + ti;
+                real[t] = u_real - tr;
+                imag[t] = u_imag - ti;
 
-                // Atualiza wr e wi
+                // Atualiza wr e wi para o próximo ponto
                 float tmp_wr_new = wr * w_real - wi * w_imag;
                 float tmp_wi_new = wr * w_imag + wi * w_real;
                 wr = tmp_wr_new;
@@ -101,22 +99,16 @@ void calculate_magnitude(const float *real, const float *imag, float *magnitude,
         return;
     }
 
-    // Utiliza buffers estáticos para evitar alocações dinâmicas
-    // Certifique-se de que BUFFER_SIZE seja grande o suficiente
-    static float squared_real_static[BUFFER_SIZE];
-    static float squared_imag_static[BUFFER_SIZE];
-    static float sum_static[BUFFER_SIZE];
-
-    mult_vect(real, real, squared_real_static, length);
-    mult_vect(imag, imag, squared_imag_static, length);
-    add_vect(squared_real_static, squared_imag_static, sum_static, length);
-    sqrt_vect(sum_static, magnitude, length);
+    // Normalização pela quantidade de pontos para obter magnitude real
+    for (size_t i = 0; i < length; i++) {
+        magnitude[i] = sqrtf(real[i] * real[i] + imag[i] * imag[i]) / (float)length;
+    }
 }
 
 /**
  * @brief Encontra a frequência de pico no array 'magnitude'.
  * @param magnitude   Array com magnitudes
- * @param length      número de amostras
+ * @param length      Número de amostras
  * @param sample_rate Taxa de amostragem em Hz.
  * @return Frequência estimada do pico, ou -1
  */

@@ -214,37 +214,29 @@ void log_heap_usage(void) {
  * @param hann_table    Tabela da janela Hann pré-computada (para tipos que utilizam).
  * @param hamming_table Tabela da janela Hamming pré-computada (para tipos que utilizam).
  */
-void precompute_window(float *buffer, size_t length, int window_type, const float *hann_table, const float *hamming_table) {
+static int precompute_window(float *buffer, size_t length, int window_type) {
     if (!buffer) {
         ESP_LOGE(TAG_UTILS, "Buffer nulo passado para precompute_window.");
-        return;
+        return -1;
     }
 
     switch (window_type) {
         case 1: { // Janela Hann
-            if (hann_table) {
-                for (size_t i = 0; i < length; i++) {
-                    buffer[i] = 0.5f * (1.0f - cosf(2.0f * M_PI * i / (length - 1)));
-                }
-            } else {
-                ESP_LOGE(TAG_UTILS, "Hann table não fornecida para janela Hann.");
+            for (size_t i = 0; i < length; i++) {
+                buffer[i] = 0.5f * (1.0f - cosf(2.0f * M_PI * i / (length - 1)));
             }
             break;
         }
         case 2: { // Janela Hamming
-            if (hamming_table) {
-                for (size_t i = 0; i < length; i++) {
-                    buffer[i] = 0.54f - 0.46f * cosf(2.0f * M_PI * i / (length - 1));
-                }
-            } else {
-                ESP_LOGW(TAG_UTILS, "Hamming table não fornecida para janela Hamming.");
+            for (size_t i = 0; i < length; i++) {
+                buffer[i] = 0.54f - 0.46f * cosf(2.0f * M_PI * i / (length - 1));
             }
-            break;
         }
         default: // Retangular (padrão)
             // Não faz nada, já está multiplicando por 1
             break;
     }
+    return 1;
 }
 
 /**
@@ -256,23 +248,25 @@ void precompute_window(float *buffer, size_t length, int window_type, const floa
  * @param hann_table    Tabela da janela Hann pré-computada (para tipos que utilizam).
  * @param hamming_table Tabela da janela Hamming pré-computada (para tipos que utilizam).
  */
-void apply_window(float *buffer, size_t length, int window_type, const float *hann_table, const float *hamming_table) {
+void apply_window(float *buffer, size_t length, int window_type) {
     if (!buffer) {
         ESP_LOGE(TAG_UTILS, "Buffer nulo passado para apply_window.");
         return;
     }
+    float w_table[length];
+    int pre_tab = precompute_window(w_table, length, window_type);
     switch (window_type) {
         case 1: { // Janela Hann
-            if (hann_table) {
-                mult_vect(buffer, hann_table, buffer, length);
+            if (pre_tab) {
+                mult_vect(buffer, w_table, buffer, length);
             } else {
                 ESP_LOGE(TAG_UTILS, "Hann table não fornecida para janela Hann.");
             }
             break;
         }
         case 2: { // Janela Hamming
-            if (hamming_table) {
-                mult_vect(buffer, hamming_table, buffer, length);
+            if (pre_tab) {
+                mult_vect(buffer, w_table, buffer, length);
             } else {
                 ESP_LOGW(TAG_UTILS, "Hamming table não fornecida para janela Hamming.");
             }

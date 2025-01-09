@@ -105,23 +105,21 @@ static void test_fft_manual(void *pv) {
     ESP_LOGI("TEST_ALL", "===== Teste da FFT Manual =====");
     
     // Parâmetros do teste
-    const size_t n = 8; // Deve ser potência de 2
-    const float sample_rate = 8.0f; // Hz
+    const size_t n = 1024; // Deve ser potência de 2
+    const float sample_rate = 48000.0f; // Hz
     const float frequency = 1.0f; // Hz
-    const float phase_increment = 2.0f * M_PI * frequency / sample_rate;
-    float phase = 0.0f;
+    float  test_phase = 0.0f;
+
 
     // Gerar uma onda senoidal pura
     float real[n];
     float imag[n];
     for (size_t i = 0; i < n; i++) {
-        real[i] = sinf(phase);
         imag[i] = 0.0f;
-        phase += phase_increment;
-        if (phase >= 2.0f * M_PI) {
-            phase -= 2.0f * M_PI;
-        }
     }
+    generate_sine_wave(real, n, 1000.0f, sample_rate, &test_phase);
+    apply_window(real, n, 1);
+
 
     // Executar a FFT manual
     uint32_t start_time = esp_timer_get_time();

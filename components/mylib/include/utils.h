@@ -41,17 +41,6 @@ void add_noise(float *buffer, size_t size, float amplitude);
 void log_heap_usage(void);
 
 /**
- * @brief Precomputa a tabela da janela Hann.
- *
- * @param buffer        Buffer de amostras.
- * @param length        Tamanho do buffer.
- * @param window_type   Tipo de janela (1: Hann, 2: Hamming).
- * @param hann_table    Tabela da janela Hann pré-computada (para tipos que utilizam).
- * @param hamming_table Tabela da janela Hamming pré-computada (para tipos que utilizam).
- */
-void precompute_window(float *buffer, size_t length, int window_type, const float *hann_table, const float *hamming_table);
-
-/**
  * @brief Aplica uma janela no buffer de entrada.
  *
  * @param buffer        Buffer de amostras.
@@ -60,7 +49,7 @@ void precompute_window(float *buffer, size_t length, int window_type, const floa
  * @param hann_table    Tabela da janela Hann pré-computada (para tipos que utilizam).
  * @param hamming_table Tabela da janela Hamming pré-computada (para tipos que utilizam).
  */
-void apply_window(float *buffer, size_t length, int window_type, const float *hann_table, const float *hamming_table);
+void apply_window(float *buffer, size_t length, int window_type);
 
 /**
  * @brief Atualiza o filtro de suavização com um novo valor e retorna a média suavizada.
