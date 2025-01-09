@@ -27,6 +27,19 @@ typedef struct {
 void generate_sine_wave(float *buffer, size_t size, float frequency, float sample_rate, float *phase);
 
 /**
+ * @brief Gera uma onda complexa.
+ *
+ * @param buffer        Buffer de saída para a onda senoidal.
+ * @param size          Número de amostras.
+ * @param sample_rate   Taxa de amostragem em Hz.
+ * @param frequencies   Frequências das ondas Hz.
+ * @param amplitudes    Amplitudes das ondas
+ * @param phases        Ponteiro para a variável de fase persistente.
+ * @param num_waves     numero de ondas juntas.
+ */
+void generate_complex_wave(float *buffer, size_t size, float sample_rate, float *frequencies, float *amplitudes, float *phases, size_t num_waves);
+
+/**
  * @brief Adiciona ruído branco ao buffer de amostras.
  *
  * @param buffer    Buffer de amostras.
@@ -58,7 +71,7 @@ void apply_window(float *buffer, size_t length, int window_type);
  * @param new_value Novo valor a ser adicionado ao filtro.
  * @return float    Média suavizada.
  */
-float smoothing_update_optimized(smoothing_t *s, float new_value);
+float smoothing_update(smoothing_t *s, float new_value);
 
 /**
  * @brief Inicializa a estrutura de smoothing.

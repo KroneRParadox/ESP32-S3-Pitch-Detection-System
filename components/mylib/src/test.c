@@ -130,15 +130,11 @@ static void test_fft_manual(void *pv) {
     float magnitude[n];
     calculate_magnitude(real, imag, magnitude, n);
 
-    // Encontrar a frequência de pico
-    float peak_freq = peak_frequency(magnitude, n, sample_rate);
-
     // Exibir resultados
     ESP_LOGI("TEST_ALL", "FFT Manual Test:");
     for (size_t i = 0; i < n; i++) {
         ESP_LOGI("TEST_ALL", "Bin %zu: Magnitude = %.5f", i, magnitude[i]);
     }
-    ESP_LOGI("TEST_ALL", "Peak Frequency Detected: %.2f Hz", peak_freq);
     ESP_LOGI("TEST_ALL", "Tempo de execução da FFT: %ld us\n", end_time-start_time);
 
     ESP_LOGI("TEST_ALL", "===== Teste da FFT Manual Concluído =====\n");

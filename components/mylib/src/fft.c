@@ -8,7 +8,7 @@
 
 static const char *TAG_FFT = "FFT";
 
-/**
+/*
  * @brief Rearranjo de bit-reversal.
  * @param real Buffer de partes reais.
  * @param imag Buffer de partes imaginárias.
@@ -35,12 +35,12 @@ static void bit_reversal(float *real, float *imag, size_t n) {
     }
 }
 
-/**
+/*
  * @brief Executa FFT (Transformada Rápida de Fourier) in-place (real + imag).
  * @param real Array de floats com parte real
  * @param imag Array de floats com parte imaginária
  * @param n    Tamanho (potência de 2)
- **/
+ */
 void fft(float *real, float *imag, size_t n) {
     if ((n & (n - 1)) != 0) {
         ESP_LOGE(TAG_FFT, "FFT: n não é potência de 2.");
@@ -104,39 +104,27 @@ void calculate_magnitude(const float *real, const float *imag, float *magnitude,
         magnitude[i] = sqrtf(real[i] * real[i] + imag[i] * imag[i]) / (float)length;
     }
 }
-
 /**
- * @brief Encontra a frequência de pico no array 'magnitude'.
- * @param magnitude   Array com magnitudes
- * @param length      Número de amostras
- * @param sample_rate Taxa de amostragem em Hz.
- * @return Frequência estimada do pico, ou -1
+ * @brief Calcula as frequências correspondentes a cada bin de magnitude da FFT.
+ * @param magnitude    Array com magnitudes da FFT.
+ * @param frequency    Buffer onde serão armazenadas as frequências calculadas.
+ * @param length       Número de amostras no array de magnitudes.
+ * @param sample_rate  Taxa de amostragem em Hz.
+ * @return 0 em sucesso, -1 em erro.
  */
-float peak_frequency(const float *magnitude, size_t length, int sample_rate) {
-    if (!magnitude || length == 0) {
-        ESP_LOGE(TAG_FFT, "Parâmetros inválidos passados para peak_frequency.");
+float frequency(const float *magnitude, float *frequency, size_t length, int sample_rate) {
+    if (!magnitude || length == 0 || !frequency) {
+        ESP_LOGE(TAG_FFT, "Parâmetros inválidos passados para frequency.");
         return -1.0f;
     }
 
-    float peak_val = 0.0f;
-    size_t peak_idx = 0;
-    const float MIN_PEAK_THRESHOLD = 0.01f; // Definir conforme necessário
+    // Calcula a resolução de frequência
+    float freq_resolution = (float)sample_rate / (float)(length); // 2 porque é uma FFT real
 
-    // Apenas até n/2 para FFT real
-    for (size_t i = 1; i < length / 2; i++) {
-        if (magnitude[i] > peak_val) {
-            peak_val = magnitude[i];
-            peak_idx = i;
-        }
+    for (size_t i = 0; i < length; i++) {
+        frequency[i] = i * freq_resolution;
     }
 
-    if (peak_val < MIN_PEAK_THRESHOLD) {
-        return -1.0f; // Nenhum pico significativo detectado
-    }
-
-    if (peak_idx == 0) {
-        return -1.0f; // Nenhum pico detectado
-    }
-
-    return (peak_idx * (float)sample_rate) / (float)length;
+    ESP_LOGI(TAG_FFT, "Frequências calculadas com sucesso.");
+    return 0.0f; // Sucesso
 }

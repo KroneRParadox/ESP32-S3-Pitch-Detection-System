@@ -22,12 +22,12 @@ void fft(float *real, float *imag, size_t n);
 void calculate_magnitude(const float *real, const float *imag, float *magnitude, size_t length);
 
 /**
- * @brief Encontra a frequência de pico no array 'magnitude'.
- * @param magnitude   array com magnitudes
- * @param length      número de amostras
- * @param sample_rate Taxa de amostragem em Hz.
- * @return Frequência estimada do pico, ou -1
+ * @brief Calcula as frequências correspondentes a cada bin de magnitude da FFT.
+ * @param magnitude    Array com magnitudes da FFT.
+ * @param frequency    Buffer onde serão armazenadas as frequências calculadas.
+ * @param length       Número de amostras no array de magnitudes.
+ * @param sample_rate  Taxa de amostragem em Hz.
+ * @return 0 em sucesso, -1 em erro.
  */
-float peak_frequency(const float *magnitude, size_t length, int sample_rate);
-
+float frequency(const float *magnitude, float *frequency, size_t length, int sample_rate);
 #endif // FFT_H

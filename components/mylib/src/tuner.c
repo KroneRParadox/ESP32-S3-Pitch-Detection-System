@@ -27,31 +27,27 @@ int get_note(float frequency, note_t *result) {
         return -1;
     }
 
-    // Limites das notas musicais (C0 ~16.35Hz a C8 ~4186Hz)
-    if (frequency < 16.35f || frequency > 4186.0f) {
-        ESP_LOGE(TAG_NOTE, "Frequência %.2f Hz fora do intervalo das notas musicais.", frequency);
+    // Limites das notas musicais MIDI (A0 ~27.5Hz a C8 ~4186Hz)
+    if (frequency < 27.5f || frequency > 4186.0f) {
+        ESP_LOGE(TAG_NOTE, "Frequência %.2f Hz fora do intervalo das notas musicais MIDI.", frequency);
         return -1;
     }
 
     // Cálculo matemático para determinar a nota e a oitava
     float ratio = frequency / A4_FREQUENCY;
-    float log2_ratio = 0.0f;
-    log2f_vect(&ratio, &log2_ratio, 1); // Substitui dsps_log2f_f32
+    float log2_ratio = log2f(ratio); // Substitui log2f_vect para um único elemento
 
-    float note_number_tmp = 0.0f;
-    float mul1 = 12.0f;
-    float mul2 = log2_ratio;
-    mult_vect(&mul1, &mul2, &note_number_tmp, 1); // Substitui dsps_mul_f32
-    float note_number_f = note_number_tmp + 49.0f; // A4 é a nota número 49
-    int rounded_note = (int)roundf(note_number_f) - 1;
+    float note_number_f = 12.0f * log2_ratio + 69.0f; // A4 é a nota número 69
+    int rounded_note = (int)roundf(note_number_f); // REMOVIDO o -1
 
-    if (rounded_note < 0 || rounded_note >= 88) { // Assumindo 88 teclas de piano (C0 a C8)
+    // Atualizado para incluir o MIDI 108 (C8)
+    if (rounded_note < 21 || rounded_note > 108) { // Assumindo 88 teclas de piano (A0 a C8)
         ESP_LOGE(TAG_NOTE, "Nota calculada fora do intervalo de 88 teclas do piano.");
         return -1;
     }
 
     // Determinar a oitava e o índice da nota
-    int octave = (rounded_note / 12) - 1; // C0 começa na oitava -1
+    int octave = (rounded_note / 12) - 1; // Correção na fórmula da oitava
     int note_index = rounded_note % 12;
 
     if (note_index < 0 || note_index >= 12) {
@@ -65,7 +61,7 @@ int get_note(float frequency, note_t *result) {
     result->octave = octave;
 
     // Calcula a frequência da nota mapeada para ajuste
-    float pow_input = ((float)(rounded_note - 48)) / 12.0f;
+    float pow_input = ((float)(rounded_note - 69)) / 12.0f;
     float pow_result = powf(2.0f, pow_input);
     float mapped_frequency = A4_FREQUENCY * pow_result;
     result->frequency = mapped_frequency;

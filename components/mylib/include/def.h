@@ -18,16 +18,18 @@
 
 #include "esp_log.h"
 #include "driver/gpio.h"
+#include "driver/adc.h"
 #include "driver/i2s_std.h"
 #include "esp_err.h"
 #include "esp_timer.h"
 
 // Configurações de Teste via ou #define
 
-#define TESTE 0 
+#define TESTE 2 
 
 #define NUM_TEST_FREQUENCIES 9
 extern const float test_frequencies[NUM_TEST_FREQUENCIES];
+#define NUM_WAVES 3
 
 // Ativar verificação (definir como 1 para ativar, 0 para desativar)
 #define ENABLE_VERIFICATION 1
@@ -39,8 +41,9 @@ extern const float test_frequencies[NUM_TEST_FREQUENCIES];
 #define I2S_SD          GPIO_NUM_10    // Pino de Dados DIN do microfone INMP441
 
 // Configurações de Amostragem
-#define SAMPLE_RATE     (44100)        // Taxa de amostragem em Hz (16kHz ou 48kHz são comuns para INMP441)
-#define BUFFER_SIZE     (1 << 11)         // Tamanho do buffer de áudio para leitura e processamento
+#define SAMPLE_RATE     (48000)        // Taxa de amostragem em Hz (16kHz ou 48kHz são comuns para INMP441)
+#define BUFFER_SIZE     (1 << 10)         // Tamanho do buffer de áudio para leitura e processamento
+#define FBUF_SIZE       (BUFFER_SIZE/2)              // Tamanho do buffer de fft para processamento
 
 // Definições de LED e Temporizador
 #define LED_GPIO        GPIO_NUM_9     // Pino do LED indicador
@@ -58,6 +61,12 @@ extern const float test_frequencies[NUM_TEST_FREQUENCIES];
 // Exemplo: Configurações para Filtros
 #define BANDPASS_LOW_FREQ 80.0f          // Frequência de corte inferior do filtro passa-banda em Hz
 #define BANDPASS_HIGH_FREQ 1000.0f       // Frequência de corte superior do filtro passa-banda em Hz
+
+// Definições de Tamanho
+#define RAW_BLOCK_SIZE sizeof(raw_block_t)
+#define AUDIO_DATA_SIZE sizeof(audio_data_t)
+#define RAW_POOL_BLOCKS 20      // Número de blocos para raw_block_t
+#define AUDIO_POOL_BLOCKS 20    // Número de blocos para audio_data_t
 
 // Definições para Algoritmo YIN
 #define YIN_THRESHOLD 0.1f               // Limite de detecção de pitch
