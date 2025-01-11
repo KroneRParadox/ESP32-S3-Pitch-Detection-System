@@ -11,7 +11,6 @@
 #include "freertos/queue.h"
 
 // ESP-IDF Drivers
-#include "driver/i2s.h"
 #include "driver/gptimer.h"
 #include "driver/gpio.h"
 #include "esp_err.h"
@@ -40,10 +39,10 @@ typedef struct {
 } raw_block_t;
 
 typedef struct {
-    float  samples[BUFFER_SIZE];   // Dados no domínio do tempo
+    float  *samples;   // Dados no domínio do tempo
     size_t length;                 // Número de amostras
-    float  frequency[FBUF_SIZE];   // Frequências correspondentes aos bins da FFT
-    float  magnitude[FBUF_SIZE];   // Magnitudes da FFT
+    float  *frequency;   // Frequências correspondentes aos bins da FFT
+    float  *magnitude;   // Magnitudes da FFT
     float  fund_frequency;         // Frequência fundamental detectada
     char   note[16];               // Nota correspondente (ex.: "A4")
 } audio_data_t;
@@ -61,9 +60,9 @@ const float test_frequencies[NUM_TEST_FREQUENCIES] = {
 #if TESTE == 1
 float phase = 0.0f;
 #elif TESTE == 2
-float frequencies_waves[NUM_WAVES] = {440.0f, 880.0f, 1320.0f}; 
-float amplitudes_waves[NUM_WAVES]  = {1.0f, 0.5f, 0.25f};
-float phases_waves[NUM_WAVES]      = {0.0f, 0.0f, 0.0f};
+float frequencies_waves[NUM_WAVES] = {27.5f, 28.0f}; 
+float amplitudes_waves[NUM_WAVES]  = {1.0f, 0.5f};
+float phases_waves[NUM_WAVES]      = {0.0f, 0.0f};
 #endif
 
 /** ----------------------------------------------------------------
@@ -163,16 +162,12 @@ static void mic_task(void *pv)
         // Lê amostras do microfone (I2S)
         blk->length = i2s_read_samples(blk->samples, BUFFER_SIZE);
     #elif TESTE == 1
-        // Gera seno (exemplo: 440Hz)
-        generate_sine_wave(blk->samples, BUFFER_SIZE, 440.0f, SAMPLE_RATE, &phase);
+        // Gera seno
+        generate_sine_wave(blk->samples, BUFFER_SIZE, 220.0f, SAMPLE_RATE, &phase);
         blk->length = BUFFER_SIZE;
     #elif TESTE == 2
         // Gera onda composta
-        generate_complex_wave(blk->samples, BUFFER_SIZE, SAMPLE_RATE, 
-                              frequencies_waves, 
-                              amplitudes_waves, 
-                              phases_waves, 
-                              NUM_WAVES);
+        generate_complex_wave(blk->samples, BUFFER_SIZE, SAMPLE_RATE, frequencies_waves, amplitudes_waves, phases_waves, NUM_WAVES);
         blk->length = BUFFER_SIZE;
     #endif
 
@@ -219,7 +214,7 @@ static void audio_task(void *pv)
     esp_err_t ret_yin = yin_init(&yin, BUFFER_SIZE, SAMPLE_RATE,
                                  YIN_THRESHOLD, 
                                  YIN_THRESHOLD_ADAPTIVE,
-                                 0.1f, 0.2f, 0.01f);
+                                 0.02f, 0.1f, 0.01f);
     if (ret_yin != ESP_OK) {
         ESP_LOGE(TAG_TAUD, "Falha ao inicializar YIN.");
         vTaskDelete(NULL);
@@ -227,7 +222,7 @@ static void audio_task(void *pv)
 
     // Filtro Band-Pass
     biquad_t bandpass_filter;
-    bandpass_init(&bandpass_filter, SAMPLE_RATE, BANDPASS_LOW_FREQ, BANDPASS_HIGH_FREQ);
+    bandpass_init(&bandpass_filter, SAMPLE_RATE, LOW_FREQ, HIGH_FREQ);
 
     smoothing_t smoothing;
     smoothing_init(&smoothing);
@@ -247,16 +242,31 @@ static void audio_task(void *pv)
             biquad_process(&bandpass_filter, raw->samples, raw->samples, raw->length);
 
             // FFT
-            float breal[FBUF_SIZE];
-            float bimg[FBUF_SIZE];
-            float mag[FBUF_SIZE];
+            float *breal  = heap_caps_malloc(FBUF_SIZE * sizeof(float), MALLOC_CAP_SPIRAM);
+            float *bimg   = heap_caps_malloc(FBUF_SIZE * sizeof(float), MALLOC_CAP_SPIRAM);
+            float *mag    = heap_caps_malloc(FBUF_SIZE * sizeof(float), MALLOC_CAP_SPIRAM);
+            
+            if (!breal || !bimg || !mag) {
+                ESP_LOGE(TAG_TAUD, "Falha ao alocar breal/bimg/mag.");
+                free(raw);
+                if(breal) heap_caps_free(breal);
+                if(bimg)  heap_caps_free(bimg);
+                if(mag)   heap_caps_free(mag);
+                continue;
+            }   
+
             for (size_t i = 0; i < FBUF_SIZE; i++) {
                 breal[i] = raw->samples[i];
                 bimg[i]  = 0.0f;
             }
+
             fft(breal, bimg, FBUF_SIZE);
-            vTaskDelay(pdMS_TO_TICKS(10));
             calculate_magnitude(breal, bimg, mag, FBUF_SIZE);
+
+            // Calcula todas as frequências dos bins
+            if (frequency(mag, breal, FBUF_SIZE, SAMPLE_RATE) != 0) {
+                ESP_LOGW(TAG_TAUD, "Erro ao calcular frequências (bins).");
+            }
 
             // YIN
             float freq_detected = 0.0f;
@@ -264,27 +274,36 @@ static void audio_task(void *pv)
                 ESP_LOGW(TAG_TAUD, "YIN não detectou pitch válido.");
                 freq_detected = -1.0f;
             }
-            vTaskDelay(pdMS_TO_TICKS(10));
 
             // Aloca estrutura de saída
             audio_data_t *out = (audio_data_t *)malloc(sizeof(audio_data_t));
             if (!out) {
                 ESP_LOGE(TAG_TAUD, "Falha ao alocar audio_data_t.");
-                free(raw); 
+                free(raw);
+                heap_caps_free(breal);
+                heap_caps_free(bimg);
+                heap_caps_free(mag); 
                 continue;
             }
 
-            // Copia dados de saída
-            memcpy(out->samples, raw->samples, raw->length * sizeof(float));
-            out->length = raw->length;
-            memcpy(out->magnitude, mag, FBUF_SIZE * sizeof(float));
-
-            // Calcula todas as frequências dos bins
-            if (frequency(out->magnitude, out->frequency, FBUF_SIZE, SAMPLE_RATE) != 0) {
-                ESP_LOGW(TAG_TAUD, "Erro ao calcular frequências (bins).");
+            float *clone_samples = heap_caps_malloc(raw->length * sizeof(float), MALLOC_CAP_SPIRAM);
+            if (!clone_samples) {
+                // Falha
+                free(out);
+                free(raw);
+                heap_caps_free(breal);
+                heap_caps_free(bimg);
+                heap_caps_free(mag);
+                continue;
             }
 
-            out->fund_frequency = freq_detected; // ou smoothing_update(&smoothing, freq_detected);
+            memcpy(clone_samples, raw->samples, raw->length*sizeof(float));
+
+            out->samples    = clone_samples;
+            out->length     = raw->length;
+            out->frequency  = breal;  // cede “a posse” do breal
+            out->magnitude  = mag;    // cede “a posse” do mag
+            out->fund_frequency = freq_detected;// ou smoothing_update(&smoothing, freq_detected);
 
             // Determina a nota
             note_t note;
@@ -298,6 +317,9 @@ static void audio_task(void *pv)
             // Envia para xResultQueue
             if (xQueueSend(xResultQueue, &out, portMAX_DELAY) != pdTRUE) {
                 ESP_LOGE(TAG_TAUD, "Falha ao enviar para xResultQueue.");
+                heap_caps_free(out->samples);
+                heap_caps_free(out->frequency);
+                heap_caps_free(out->magnitude);
                 free(out);
             }
 
@@ -315,7 +337,8 @@ static void audio_task(void *pv)
 /** ----------------------------------------------------------------
  *  Tarefa: comm_task
  *    - Recebe audio_data_t de xResultQueue
- *    - Imprime no formato esperado (para Processing/Python)
+ *    - Imprime no formato esperado
+ *    - Fun_Freq;Note;Samples;Magnitude\n 
  *  ---------------------------------------------------------------- */
 static void comm_task(void *pv)
 {
@@ -332,15 +355,39 @@ static void comm_task(void *pv)
             // 1) Enviar a frequência fundamental e a nota
             printf("FUND_FREQ=%.2fHz NOTE=%s\n", rcv->fund_frequency, rcv->note);
 
-            // 2) Enviar todas as frequências da FFT
+            /* 2) Enviar todas as frequências da FFT
             printf("FREQS=");
             for (size_t i = 0; i < FBUF_SIZE; i++) {
                 printf("%.2f,", rcv->frequency[i]);
+                vTaskDelay(pdMS_TO_TICKS(1));
             }
             printf("\n");
+            printf("MAGN=");
+            for (size_t i = 0; i < FBUF_SIZE; i++) {
+                printf("%.2f,", rcv->magnitude[i]);
+                vTaskDelay(pdMS_TO_TICKS(1));
+            }
+            printf("\n");
+            
+                        // 1) Enviar a frequência fundamental e a nota
+            printf("%.2f;%s;", rcv->fund_frequency, rcv->note);
+
+            // 2) Enviar as samples e a magnitude
+            for (size_t i = 0; i < BUFFER_SIZE; i++) {
+                printf("%.2f;", rcv->samples[i]);
+                if(i > FBUF_SIZE)
+                    printf("%.2f", rcv->magnitude[FBUF_SIZE]);
+                printf("%.2f", rcv->magnitude[FBUF_SIZE]);
+            }
+            printf("\n");
+            */
 
             // Libera
+            heap_caps_free(rcv->samples);
+            heap_caps_free(rcv->frequency);
+            heap_caps_free(rcv->magnitude);
             free(rcv);
+            vTaskDelay(pdMS_TO_TICKS(1));
         }
     }
 }
@@ -352,10 +399,6 @@ void app_main(void)
 {
     ESP_LOGI(TAG, "Iniciando sistema de detecção de pitch...");
 
-#if TESTE == 1
-    // run_all_tests(); // se quiser rodar
-#endif
-
     // 1) LED Timer (opcional)
     configure_led_timer();
 
@@ -366,6 +409,13 @@ void app_main(void)
         ESP_LOGE(TAG, "Falha ao inicializar I2S. Reiniciando...");
         esp_restart();
     }
+    #if TESTE == 0
+    printf("Microfone;");
+    #elif TESTE == 1
+    printf("Teste com onda simples;");
+    #elif TESTE == 2
+    printf("Teste com onda composta;");
+    #endif
 
     // 3) Cria Filas
     xRawQueue    = xQueueCreate(8, sizeof(raw_block_t *));
@@ -377,13 +427,13 @@ void app_main(void)
 
     // 4) Cria tasks
     ESP_LOGI(TAG, "Criando mic_task...");
-    xTaskCreatePinnedToCore(mic_task,   "mic_task",   8192,  NULL, 5, NULL, 0);
+    xTaskCreatePinnedToCore(mic_task,   "mic_task",   1 << 13,  NULL, 5, NULL, 0);
 
     ESP_LOGI(TAG, "Criando audio_task...");
-    xTaskCreatePinnedToCore(audio_task, "audio_task", 32768, NULL, 4, NULL, 1);
+    xTaskCreatePinnedToCore(audio_task, "audio_task", 1 << 15, NULL, 4, NULL, 1);
 
     ESP_LOGI(TAG, "Criando comm_task...");
-    xTaskCreatePinnedToCore(comm_task,  "comm_task",  4096,  NULL, 3, NULL, 1);
+    xTaskCreatePinnedToCore(comm_task,  "comm_task",  1 << 12,  NULL, 3, NULL, 1);
 
     // 5) Loop de monitoramento
     while (1) {

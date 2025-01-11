@@ -36,8 +36,8 @@ esp_err_t yin_init(Yin *yin, size_t buffer_size, float sample_rate, float thresh
     yin->config.current_adaptive_threshold = adaptive_max; // Inicia com o valor máximo
 
     // Inicializa tau_min e tau_max (ajuste conforme necessário)
-    yin->config.tau_min = (size_t)(sample_rate / 2000.0f); // Frequência máxima de 2000 Hz
-    yin->config.tau_max = (size_t)(sample_rate / 80.0f);   // Frequência mínima de 80 Hz
+    yin->config.tau_min = (size_t)(sample_rate / HIGH_FREQ); // Frequência máxima de 4186 Hz
+    yin->config.tau_max = (size_t)(sample_rate / LOW_FREQ);   // Frequência mínima de 27.5 Hz
 
     // Aloca memória para os buffers
     yin->config.cumulative_difference = (float *)heap_caps_malloc(buffer_size * sizeof(float), MALLOC_CAP_8BIT);
@@ -92,47 +92,56 @@ int yin_detect_pitch(Yin *yin, const float *buffer, float *frequency) {
         yin->config.cumulative_difference[i] = 0.0f;
     }
 
-    // Passo 1: Cálculo da função de diferença cumulativa manualmente
+    // Passo 1 e 2 no mesmo loop
+    float running_sum = 0.0f;
+    yin->config.cumulative_mean_difference[tau_min] = 0.0f;
+
+    // Parâmetros da heurística
+    const size_t  YIELD_INTERVAL         = 5;       // Intervalo para ceder CPU
+
     for (size_t tau = tau_min; tau <= tau_max; tau++) {
+        // 1) diferença cumulativa (combina sub, mult, sum)
+        float sum = 0.0f;
         size_t len = n - tau;
+        for (size_t j=0; j < len; j++) {
+            float diff = buffer[j] - buffer[j + tau];
+            sum += diff * diff;
+            //vTaskDelay(pdMS_TO_TICKS(5));
+        }
+        yin->config.cumulative_difference[tau] = sum;
 
-        // Subtração manual: buffer[j] - buffer[j + tau]
-        sub_vect(buffer, buffer + tau, yin->config.cumulative_difference + tau, len);
+        // 2) média cumulativa
+        if (tau == tau_min) {
+            running_sum = sum; // start
+        } else {
+            running_sum += sum;
+        }
+        yin->config.cumulative_mean_difference[tau] = running_sum;
 
-        // Multiplicação manual: (buffer[j] - buffer[j + tau])^2
-        mult_vect(yin->config.cumulative_difference + tau, yin->config.cumulative_difference + tau, yin->config.cumulative_difference + tau, len);
 
-        // Soma manual das diferenças quadráticas
-        yin->config.cumulative_difference[tau] = sum_vect(yin->config.cumulative_difference + tau, len);
-    }
-
-    // Passo 2: Cálculo da função de diferença média cumulativa
-    yin->config.cumulative_mean_difference[tau_min] = yin->config.cumulative_difference[tau_min];
-    for (size_t tau = tau_min + 1; tau <= tau_max; tau++) {
-        yin->config.cumulative_mean_difference[tau] = yin->config.cumulative_difference[tau] + yin->config.cumulative_mean_difference[tau - 1];
+        // ceder CPU esporadicamente sem travar
+        if ((tau % YIELD_INTERVAL) == 0) {
+            taskYIELD();
+        }
     }
 
     // Passo 3: Identificação da primeira tau onde d(tau)/mean(d(tau)) < threshold
-    size_t tau = 0;
-    float used_threshold = yin->config.threshold;
-
-    if (yin->threshold_mode == YIN_THRESHOLD_ADAPTIVE) {
-        used_threshold = yin->config.current_adaptive_threshold;
-    }
-
-    for (tau = tau_min; tau <= tau_max; tau++) {
-        if (yin->config.cumulative_mean_difference[tau] == 0.0f) {
-            continue; // Evita divisão por zero
-        }
-        float normalized_difference = ((float)tau * yin->config.cumulative_difference[tau]) / yin->config.cumulative_mean_difference[tau];
-        if (normalized_difference < used_threshold) {
+    size_t tau_found = tau_max + 1; // Indica que não foi encontrado
+    float used_threshold = (yin->threshold_mode == YIN_THRESHOLD_ADAPTIVE) ? yin->config.current_adaptive_threshold : yin->config.threshold;
+    for (size_t tau = tau_min; tau <= tau_max; tau++) {
+        float cum_mean = yin->config.cumulative_mean_difference[tau];
+        if (cum_mean == 0.0f) continue;
+        float norm_diff = ((float)tau * yin->config.cumulative_difference[tau]) / cum_mean;
+        if (norm_diff < used_threshold) {
+            tau_found = tau;
             break;
         }
     }
 
-    if (tau > tau_max) {
+    if (tau_found > tau_max) {
         // Nenhuma frequência detectada
         *frequency = -1.0f;
+        ESP_LOGD(TAG_YIN, "Aqui");
 
         // Ajusta o threshold adaptativo para torná-lo menos sensível na próxima iteração
         if (yin->threshold_mode == YIN_THRESHOLD_ADAPTIVE) {
@@ -146,25 +155,25 @@ int yin_detect_pitch(Yin *yin, const float *buffer, float *frequency) {
     }
 
     // Passo 4: Interpolação parabólica para refinar a estimativa de tau
-    if (tau + 1 > tau_max || tau < tau_min + 1) {
+    if (tau_found + 1 > tau_max || tau_found < tau_min + 1) {
         // Sem pontos suficientes para interpolação
-        *frequency = yin->config.sample_rate / (float)tau;
+        *frequency = yin->config.sample_rate / (float)tau_found;
         return 0;
     }
 
-    float d0 = yin->config.cumulative_difference[tau - 1];
-    float d1 = yin->config.cumulative_difference[tau];
-    float d2 = yin->config.cumulative_difference[tau + 1];
+    float d0 = yin->config.cumulative_difference[tau_found - 1];
+    float d1 = yin->config.cumulative_difference[tau_found];
+    float d2 = yin->config.cumulative_difference[tau_found + 1];
 
     // Verifica se a diferença para interpolação é válida
     if ((2.0f * d1 - d2 - d0) == 0.0f) {
         // Evita divisão por zero na interpolação
-        *frequency = yin->config.sample_rate / (float)tau;
+        *frequency = yin->config.sample_rate / (float)tau_found;
         return 0;
     }
 
     // Fórmula de interpolação parabólica
-    float better_tau = tau + (d2 - d0) / (2.0f * (2.0f * d1 - d2 - d0));
+    float better_tau = tau_found + (d2 - d0) / (2.0f * (2.0f * d1 - d2 - d0));
 
     // Calcula a frequência fundamental
     *frequency = yin->config.sample_rate / better_tau;

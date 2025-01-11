@@ -78,9 +78,12 @@ void fft(float *real, float *imag, size_t n) {
                 float tmp_wr_new = wr * w_real - wi * w_imag;
                 float tmp_wi_new = wr * w_imag + wi * w_real;
                 wr = tmp_wr_new;
-                wi = tmp_wi_new;
+                wi = tmp_wi_new;   
             }
         }
+        if ((s % 50) == 0) {
+            taskYIELD();
+        }    
     }
 
     ESP_LOGI(TAG_FFT, "FFT concluída.");
@@ -102,6 +105,9 @@ void calculate_magnitude(const float *real, const float *imag, float *magnitude,
     // Normalização pela quantidade de pontos para obter magnitude real
     for (size_t i = 0; i < length; i++) {
         magnitude[i] = sqrtf(real[i] * real[i] + imag[i] * imag[i]) / (float)length;
+        if ((i % 50) == 0) {
+            taskYIELD();
+        }    
     }
 }
 /**
@@ -119,10 +125,13 @@ float frequency(const float *magnitude, float *frequency, size_t length, int sam
     }
 
     // Calcula a resolução de frequência
-    float freq_resolution = (float)sample_rate / (float)(length); // 2 porque é uma FFT real
+    float freq_resolution = (float)sample_rate / (float)(length);
 
     for (size_t i = 0; i < length; i++) {
         frequency[i] = i * freq_resolution;
+        if ((i % 50) == 0) {
+            taskYIELD();
+        }    
     }
 
     ESP_LOGI(TAG_FFT, "Frequências calculadas com sucesso.");

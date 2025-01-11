@@ -18,18 +18,17 @@
 
 #include "esp_log.h"
 #include "driver/gpio.h"
-#include "driver/adc.h"
 #include "driver/i2s_std.h"
 #include "esp_err.h"
 #include "esp_timer.h"
 
 // Configurações de Teste via ou #define
 
-#define TESTE 0 
+#define TESTE 1 
 
 #define NUM_TEST_FREQUENCIES 9
 extern const float test_frequencies[NUM_TEST_FREQUENCIES];
-#define NUM_WAVES 3
+#define NUM_WAVES 2
 
 // Ativar verificação (definir como 1 para ativar, 0 para desativar)
 #define ENABLE_VERIFICATION 1
@@ -42,8 +41,10 @@ extern const float test_frequencies[NUM_TEST_FREQUENCIES];
 
 // Configurações de Amostragem
 #define SAMPLE_RATE     (48000)        // Taxa de amostragem em Hz (16kHz ou 48kHz são comuns para INMP441)
-#define BUFFER_SIZE     (1 << 10)         // Tamanho do buffer de áudio para leitura e processamento
+#define BUFFER_SIZE     (1 << 12)         // Tamanho do buffer de áudio para leitura e processamento
 #define FBUF_SIZE       (BUFFER_SIZE/2)              // Tamanho do buffer de fft para processamento
+#define SLIDING_BUFFER_SIZE (1 << 13)
+#define STEP_SIZE           (1 << 11)
 
 // Definições de LED e Temporizador
 #define LED_GPIO        GPIO_NUM_9     // Pino do LED indicador
@@ -59,8 +60,8 @@ extern const float test_frequencies[NUM_TEST_FREQUENCIES];
 
 // Definições Adicionais (Se Necessário)
 // Exemplo: Configurações para Filtros
-#define BANDPASS_LOW_FREQ 80.0f          // Frequência de corte inferior do filtro passa-banda em Hz
-#define BANDPASS_HIGH_FREQ 1000.0f       // Frequência de corte superior do filtro passa-banda em Hz
+#define LOW_FREQ 27.5f          // Frequência de corte inferior do filtro passa-banda em Hz
+#define HIGH_FREQ 4186.0f       // Frequência de corte superior do filtro passa-banda em Hz
 
 // Definições de Tamanho
 #define RAW_BLOCK_SIZE sizeof(raw_block_t)
@@ -69,7 +70,7 @@ extern const float test_frequencies[NUM_TEST_FREQUENCIES];
 #define AUDIO_POOL_BLOCKS 20    // Número de blocos para audio_data_t
 
 // Definições para Algoritmo YIN
-#define YIN_THRESHOLD 0.1f               // Limite de detecção de pitch
+#define YIN_THRESHOLD 0.05f               // Limite de detecção de pitch
 #define YIN_PROBABILITY 0.1f             // Probabilidade mínima para confirmação de pitch
 #define YIN_MIN_LAG 40                    // Lag mínimo para detecção de pitch
 #define YIN_MAX_LAG 1000                  // Lag máximo para detecção de pitch
