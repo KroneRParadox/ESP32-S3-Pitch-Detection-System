@@ -51,18 +51,12 @@ typedef struct {
 static QueueHandle_t xRawQueue    = NULL; // mic_task -> audio_task
 static QueueHandle_t xResultQueue = NULL; // audio_task -> comm_task
 
-// Definição de test_frequencies (se usar)
-const float test_frequencies[NUM_TEST_FREQUENCIES] = {
-    110.0f, 220.0f, 330.0f, 440.0f,
-    550.0f, 660.0f, 770.0f, 880.0f, 990.0f
-};
-
 #if TESTE == 1
 float phase = 0.0f;
 #elif TESTE == 2
-float frequencies_waves[NUM_WAVES] = {27.5f, 28.0f}; 
-float amplitudes_waves[NUM_WAVES]  = {1.0f, 0.5f};
-float phases_waves[NUM_WAVES]      = {0.0f, 0.0f};
+float frequencies_waves[NUM_WAVES] = {330.0f, 1000.0f, 660.0f}; //min de 280hz de diferença
+float amplitudes_waves[NUM_WAVES]  = {0.7f, 1.0f, 0.25f};
+float phases_waves[NUM_WAVES]      = {0.0f, 0.0f, 0.0f};
 #endif
 
 /** ----------------------------------------------------------------
@@ -151,19 +145,19 @@ static void mic_task(void *pv)
         TickType_t start_ticks = xTaskGetTickCount();
 
         // Aloca dinamicamente um bloco
-        raw_block_t *blk = (raw_block_t *)malloc(sizeof(raw_block_t));
+        raw_block_t *blk = (raw_block_t *)heap_caps_malloc(sizeof(raw_block_t), MALLOC_CAP_SPIRAM);
         if (blk == NULL) {
             ESP_LOGE(TAG_TMIC, "Falha ao alocar raw_block_t (sem memória).");
             vTaskDelay(pdMS_TO_TICKS(100));
             continue;
         }
-
     #if TESTE == 0
         // Lê amostras do microfone (I2S)
         blk->length = i2s_read_samples(blk->samples, BUFFER_SIZE);
+        ESP_LOGI(TAG_TMIC, "Aqui");
     #elif TESTE == 1
         // Gera seno
-        generate_sine_wave(blk->samples, BUFFER_SIZE, 220.0f, SAMPLE_RATE, &phase);
+        generate_sine_wave(blk->samples, BUFFER_SIZE, 3300.0f, SAMPLE_RATE, &phase); //Limites: min->220hz, max->3200hz
         blk->length = BUFFER_SIZE;
     #elif TESTE == 2
         // Gera onda composta
@@ -248,7 +242,7 @@ static void audio_task(void *pv)
             
             if (!breal || !bimg || !mag) {
                 ESP_LOGE(TAG_TAUD, "Falha ao alocar breal/bimg/mag.");
-                free(raw);
+                heap_caps_free(raw);
                 if(breal) heap_caps_free(breal);
                 if(bimg)  heap_caps_free(bimg);
                 if(mag)   heap_caps_free(mag);
@@ -276,10 +270,10 @@ static void audio_task(void *pv)
             }
 
             // Aloca estrutura de saída
-            audio_data_t *out = (audio_data_t *)malloc(sizeof(audio_data_t));
+            audio_data_t *out = (audio_data_t *)heap_caps_malloc(sizeof(audio_data_t), MALLOC_CAP_SPIRAM);
             if (!out) {
                 ESP_LOGE(TAG_TAUD, "Falha ao alocar audio_data_t.");
-                free(raw);
+                heap_caps_free(raw);
                 heap_caps_free(breal);
                 heap_caps_free(bimg);
                 heap_caps_free(mag); 
@@ -289,8 +283,8 @@ static void audio_task(void *pv)
             float *clone_samples = heap_caps_malloc(raw->length * sizeof(float), MALLOC_CAP_SPIRAM);
             if (!clone_samples) {
                 // Falha
-                free(out);
-                free(raw);
+                heap_caps_free(out);
+                heap_caps_free(raw);
                 heap_caps_free(breal);
                 heap_caps_free(bimg);
                 heap_caps_free(mag);
@@ -320,15 +314,15 @@ static void audio_task(void *pv)
                 heap_caps_free(out->samples);
                 heap_caps_free(out->frequency);
                 heap_caps_free(out->magnitude);
-                free(out);
+                heap_caps_free(out);
             }
 
             // Libera o bloco bruto
-            free(raw);
+            heap_caps_free(raw);
 
             TickType_t end_ticks = xTaskGetTickCount();
             float elapsed_ms = (float)(end_ticks - start_ticks) * portTICK_PERIOD_MS;
-            ESP_LOGD(TAG_TAUD, "Tempo process. audio_task: %.2f ms", elapsed_ms);
+            ESP_LOGI(TAG_TAUD, "Tempo process. audio_task: %.2f ms", elapsed_ms);
         }
         vTaskDelay(pdMS_TO_TICKS(1));
     }
@@ -352,10 +346,27 @@ static void comm_task(void *pv)
                 continue;
             }
 
+            #if PROCESSING == 0
             // 1) Enviar a frequência fundamental e a nota
             printf("FUND_FREQ=%.2fHz NOTE=%s\n", rcv->fund_frequency, rcv->note);
+            #elif PROCESSING == 1
+            // 1) Enviar a frequência fundamental e a nota
+            printf("%.2f;%s;", rcv->fund_frequency, rcv->note);
 
-            /* 2) Enviar todas as frequências da FFT
+            // 2) Enviar as samples e a magnitude
+            for (size_t i = 0; i < BUFFER_SIZE; i++) {
+                printf("%.2f", rcv->samples[i]);
+            }
+            printf(";");
+
+            for (size_t i = 0; i < FBUF_SIZE; i++)
+            {
+                printf("%.2f", rcv->magnitude[FBUF_SIZE]);
+            }
+            printf("\n");
+            #endif
+            #if ENABLE_VERIFICATION == 1
+            //2) Enviar todas as frequências da FFT
             printf("FREQS=");
             for (size_t i = 0; i < FBUF_SIZE; i++) {
                 printf("%.2f,", rcv->frequency[i]);
@@ -368,25 +379,14 @@ static void comm_task(void *pv)
                 vTaskDelay(pdMS_TO_TICKS(1));
             }
             printf("\n");
+            #endif
             
-                        // 1) Enviar a frequência fundamental e a nota
-            printf("%.2f;%s;", rcv->fund_frequency, rcv->note);
-
-            // 2) Enviar as samples e a magnitude
-            for (size_t i = 0; i < BUFFER_SIZE; i++) {
-                printf("%.2f;", rcv->samples[i]);
-                if(i > FBUF_SIZE)
-                    printf("%.2f", rcv->magnitude[FBUF_SIZE]);
-                printf("%.2f", rcv->magnitude[FBUF_SIZE]);
-            }
-            printf("\n");
-            */
 
             // Libera
             heap_caps_free(rcv->samples);
             heap_caps_free(rcv->frequency);
             heap_caps_free(rcv->magnitude);
-            free(rcv);
+            heap_caps_free(rcv);
             vTaskDelay(pdMS_TO_TICKS(1));
         }
     }
@@ -409,12 +409,13 @@ void app_main(void)
         ESP_LOGE(TAG, "Falha ao inicializar I2S. Reiniciando...");
         esp_restart();
     }
+    printf("Origin;");
     #if TESTE == 0
-    printf("Microfone;");
+    printf("Microfone\n");
     #elif TESTE == 1
-    printf("Teste com onda simples;");
+    printf("Teste com onda simples\n");
     #elif TESTE == 2
-    printf("Teste com onda composta;");
+    printf("Teste com onda composta\n");
     #endif
 
     // 3) Cria Filas

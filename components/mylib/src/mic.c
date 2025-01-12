@@ -86,7 +86,11 @@ size_t i2s_read_samples(float *buffer, size_t length)
     }
 
     // Buffer temporário para leitura (int32_t devido a 24 bits)
-    int32_t temp_buf[BUFFER_SIZE];
+    int32_t *temp_buf = (int32_t *)heap_caps_malloc(BUFFER_SIZE * sizeof(int32_t), MALLOC_CAP_SPIRAM);
+    if (temp_buf == NULL) {
+        ESP_LOGE(TAG_MIC, "Falha ao alocar temp_buf.");
+        return 0;
+    }
     size_t bytes_read = 0;
     size_t to_read = length * sizeof(int32_t);
 
@@ -114,6 +118,7 @@ size_t i2s_read_samples(float *buffer, size_t length)
     }
     ESP_LOGD(TAG_MIC, "Processamento de %zu samples concluído.", samples_read);
 
+    heap_caps_free(temp_buf);
     return samples_read;
 }
 

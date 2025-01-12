@@ -14,23 +14,6 @@ typedef enum {
     YIN_THRESHOLD_ADAPTIVE
 } yin_threshold_mode_t;
 
-/**
- * @brief Macro de configuração padrão para YIN.
- */
-#define YIN_DEFAULT_CONFIG(Buffer, Sample_Rate) { \
-    .config.buffer_size = Buffer, \
-    .config.sample_rate = Sample_Rate, \
-    .config.threshold = 0.15f, \
-    .config.tau_min = (size_t)(44100.0f / 2000.0f), \
-    .config.tau_max = (size_t)(44100.0f / 80.0f), \
-    .config.adaptive_threshold_min = 0.1f, \
-    .config.adaptive_threshold_max = 0.2f, \
-    .config.adaptive_threshold_step = 0.01f, \
-    .config.current_adaptive_threshold = 0.2f, \
-    .threshold_mode = YIN_THRESHOLD_FIXED, \
-    .config.cumulative_difference = NULL, \
-    .config.cumulative_mean_difference = NULL \
-}
 
 /**
  * @brief Estrutura de configuração e estado para o algoritmo YIN.
