@@ -12,7 +12,7 @@ Este projeto implementa um sistema de **detecção de pitch e análise de áudio
 - **Testes automatizados** de processamento de sinais e notas musicais.
 
 ## Estrutura do Projeto
-
+````
 📂 src
  ├── 📄 main.c         # Código principal e gerenciamento de tarefas
  ├── 📄 mic.c          # Captura de áudio via I2S
@@ -22,7 +22,7 @@ Este projeto implementa um sistema de **detecção de pitch e análise de áudio
  ├── 📄 tuner.c        # Conversão de frequência para nota musical
  ├── 📄 utils.c        # Funções auxiliares de matemática e DSP
  ├── 📄 test.c         # Rotinas de teste do sistema
-
+````
 
 ## Requisitos
 
