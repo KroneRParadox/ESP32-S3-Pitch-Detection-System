@@ -1,35 +1,66 @@
-| Supported Targets | ESP32 | ESP32-C2 | ESP32-C3 | ESP32-C5 | ESP32-C6 | ESP32-H2 | ESP32-P4 | ESP32-S2 | ESP32-S3 |
-| ----------------- | ----- | -------- | -------- | -------- | -------- | -------- | -------- | -------- | -------- |
+# ESP32-S3 Pitch Detection System
 
-# _Sample project_
+Este projeto implementa um sistema de **detecção de pitch e análise de áudio em tempo real** utilizando o **ESP32-S3-DevKitC-1**. Ele combina **I2S para captura de áudio**, **FFT para análise espectral** e o **algoritmo YIN para detecção de frequência fundamental**.
 
-(See the README.md file in the upper level 'examples' directory for more information about examples.)
+## Características
 
-This is the simplest buildable example. The example is used by command `idf.py create-project`
-that copies the project to user specified path and set it's name. For more information follow the [docs page](https://docs.espressif.com/projects/esp-idf/en/latest/api-guides/build-system.html#start-a-new-project)
+- **Captura de áudio** via microfone I2S.
+- **Análise FFT** para extração de espectro.
+- **Detecção de pitch** com o algoritmo **YIN**.
+- 🎚**Filtro passa-banda** otimizado para eliminar ruídos.
+- 🛠**Execução multitarefa** com FreeRTOS para melhor desempenho.
+- **Testes automatizados** de processamento de sinais e notas musicais.
+
+## Estrutura do Projeto
+
+📂 src
+ ├── 📄 main.c         # Código principal e gerenciamento de tarefas
+ ├── 📄 mic.c          # Captura de áudio via I2S
+ ├── 📄 filters.c      # Implementação de filtros digitais
+ ├── 📄 fft.c          # Transformada Rápida de Fourier (FFT)
+ ├── 📄 yin.c          # Algoritmo YIN para detecção de pitch
+ ├── 📄 tuner.c        # Conversão de frequência para nota musical
+ ├── 📄 utils.c        # Funções auxiliares de matemática e DSP
+ ├── 📄 test.c         # Rotinas de teste do sistema
 
 
+## Requisitos
 
-## How to use example
-We encourage the users to use the example as a template for the new projects.
-A recommended way is to follow the instructions on a [docs page](https://docs.espressif.com/projects/esp-idf/en/latest/api-guides/build-system.html#start-a-new-project).
+- **ESP32-S3-DevKitC-1**
+- **ESP-IDF** (Ambiente de desenvolvimento da Espressif)
+- **Microfone I2S** (ex.: INMP441)
 
-## Example folder contents
+## Funcionamento
 
-The project **sample_project** contains one source file in C language [main.c](main/main.c). The file is located in folder [main](main).
+### Entrada: Captura de áudio
+- O **microfone I2S** captura o áudio e armazena as amostras em um buffer.
 
-ESP-IDF projects are built using CMake. The project build configuration is contained in `CMakeLists.txt`
-files that provide set of directives and instructions describing the project's source files and targets
-(executable, library, or both). 
+### Processamento:
+1. **Filtro Passa-Banda**: Remove frequências indesejadas.
+2. **FFT**: Analisa o espectro de frequência.
+3. **YIN**: Calcula a frequência fundamental.
+4. **Conversão para Nota**: Determina a nota musical correspondente.
 
-Below is short explanation of remaining files in the project folder.
+### Saída:
+- A frequência fundamental e a nota musical são enviadas via **UART** no formato:
+  ```
+  FUND_FREQ=440.00Hz NOTE=A4
+  ```
 
+## Testes
+
+O código inclui um módulo de **testes automatizados** (`test.c`) que verifica:
+**FFT e cálculo de magnitude**  
+**Filtragem digital**  
+**Detecção de pitch com YIN**  
+**Conversão de frequência para nota musical**  
+
+Para executar os testes:
+```sh
+idf.py menuconfig   # Ative a opção TESTE=1 no menuconfig
+idf.py flash monitor
 ```
-├── CMakeLists.txt
-├── main
-│   ├── CMakeLists.txt
-│   └── main.c
-└── README.md                  This is the file you are currently reading
-```
-Additionally, the sample project contains Makefile and component.mk files, used for the legacy Make based build system. 
-They are not used or needed when building with CMake and idf.py.
+
+## 📜 Licença
+
+Este projeto está licenciado sob a **MIT License** - veja o arquivo [LICENSE](LICENSE) para mais detalhes.
